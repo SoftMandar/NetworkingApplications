@@ -47,5 +47,5 @@ class UDPClient(object):
 
 
 if __name__ == "__main__":
-    client = UDPClient(("127.0.0.1",8080))
-    client.send_to_server()
+    client = TCPClient(("127.0.0.1",8080))
+    client.connect_to_server()
