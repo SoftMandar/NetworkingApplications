@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+      "stream": {
+        "format": "%(asctime)s - [%(levelname)s]: %(message)s"
+      },
+      "error":{
+        "format": "%(asctime)s - [%(levelname)s] -> %(lineno)s : %s(message)"
+      }
+  },
+  "handlers":{
+      "stream_handler": {
+          "class": "logging.StreamHandler",
+          "level": "INFO",
+          "formatter": "stream",
+          "stream": "ext://sys.stdout"
+      },
+
+      "error_handler":{
+          "class": "logging.handlers.RotatingFileHandler",
+          "level": "ERROR",
+          "formatter": "error",
+          "filename": "FTPServer/log/error.log",
+          "maxBytes": 10485760,
+          "backupCount": 20,
+          "encoding": "utf-8"
+      }
+  },
+  "root":{
+      "level": "INFO",
+      "handlers": ["stream_handler", "error_handler"]
+  }
+
+
+}
