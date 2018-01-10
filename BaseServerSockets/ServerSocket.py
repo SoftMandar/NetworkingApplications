@@ -1,6 +1,5 @@
 import socket
 import threading
-import struct
 
 class BaseTCPServer(object):
 
@@ -55,6 +54,7 @@ class BaseUDPServer(object):
 class ThreadTCPClientHandler(threading.Thread):
 
         def __init__(self, client_socket, client_addr):
+            # Sorry for verbosity
             super(ThreadTCPClientHandler,self).__init__()
             self.client_socket = client_socket
             self.client_addr = client_addr
