@@ -3,6 +3,7 @@ import struct
 import configparser
 import threading
 import logging.config
+import subprocess
 import os
 import json
 
@@ -34,17 +35,65 @@ class FTPServerConfig(object):
 
 class ThreadFTPClientHandler(threading.Thread):
 
+    MAX_RECV_BYTES = 1430
 
-    def __init__(self):
-        pass
+    def __init__(self, client_socket, client_address):
+
+        super(ThreadFTPClientHandler,self).__init__()
+
+        self.client_sock = client_socket
+        self.client_addr = client_address
+
+        self.sys_commands = ["ls -l", "ls"]
+        self.tcp_commads = ['-d', '-e']
 
     def run(self):
+
+        #data_buf = self.client_sock.recv(ThreadFTPClientHandler.MAX_RECV_BYTES)
+        data_buffer = ""
+
+        while True:
+
+            clt_data = self.self.client_sock.recv(ThreadFTPClientHandler.MAX_RECV_BYTES)
+
+            if no clt_data:
+                break
+
+            data_buffer+=clt_data
+
+        print(data_buffer.decode("utf-8")
+        data_buffer = data_buffer.decode("utf-8")
+
+        if data_buffer in self.sys_commands:
+                proceed_command(data_buffer)
+
+        else if data_buffer in self.tcp_commads:
+                pass
+        else:
+            pass
+
+
+    def download_file(self):
         pass
 
+    def download_folder(self):
+        pass
+
+    def delete_file(self):
+        pass
+
+    def delete_folder(self):
+        pass
+
+    def proceed_command(self, command):
+        command = command.strip()
+        try:
+            output = subprocess.check_output(command,stderr=subprocess.STDOUT,shell=True)
+            self.client_sock.send(output.encode("utf-8"))
+        except:
+            self.client_sock.send("Failed to execute command\n".encode("utf-8"))
 
 class FTPServer(object):
-
-    MAX_SEND_BYTES = 1024
 
     def __init__(self, server_address=None, blocking=False, reuse_address=False, usrBacklog=1):
 
@@ -85,6 +134,9 @@ class FTPServer(object):
         client_socket, client_address = self.server_socket.accept()
 
         self.server_logger.info("Client just connected with the address => {}:{}".format(client_address[0],client_address[1]))
+
+        client_handler = ThreadFTPClientHandler(client_socket, client_address)
+        client_handler.start()
 
     def shutdown_server(self):
         self.server_logger.info("Server is closing...")
