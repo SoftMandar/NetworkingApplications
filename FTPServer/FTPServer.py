@@ -36,6 +36,7 @@ class FTPServerConfig(object):
 class ThreadFTPClientHandler(threading.Thread):
 
     MAX_RECV_BYTES = 1430
+    MAX_SEND_BYTES = 1024
 
     def __init__(self, client_socket, client_address):
 
@@ -45,7 +46,7 @@ class ThreadFTPClientHandler(threading.Thread):
         self.client_addr = client_address
 
         self.sys_commands = ["ls -l", "ls"]
-        self.tcp_commads = ['-d', '-e']
+        self.tcp_commads = ['-d', '-e', '-df', '-de']
 
     def run(self):
 
@@ -54,43 +55,78 @@ class ThreadFTPClientHandler(threading.Thread):
 
         while True:
 
-            clt_data = self.self.client_sock.recv(ThreadFTPClientHandler.MAX_RECV_BYTES)
-
-            if no clt_data:
+            clt_data = self.client_sock.recv(ThreadFTPClientHandler.MAX_RECV_BYTES)
+            if not clt_data:
+                print("Client just disconnected...")
                 break
 
-            data_buffer+=clt_data
+            data_buffer+=clt_data.decode("utf-8")
 
-        print(data_buffer.decode("utf-8")
-        data_buffer = data_buffer.decode("utf-8")
+        #print(data_buffer.decode("utf-8")
 
-        if data_buffer in self.sys_commands:
-                proceed_command(data_buffer)
+            if data_buffer in self.sys_commands:
+            #self.proceed_command(data_buffer)
+                self.proceed_command(data_buffer)
+            elif data_buffer in self.tcp_commads:
+                if data_buffer == '-d':
+                    self.download_file(data_buffer.split("=")[1])
+                elif data_buffer == '-e':
+                    pass
+                elif data_buffer == '-df':
+                    pass
+                else:
+                    pass
 
-        else if data_buffer in self.tcp_commads:
-                pass
+            else:
+                self.client_sock.send("Command is nor reconized")
+            data_buffer = ""
+
+
+    def download_file(self, filename):
+
+        if os.path.exists(filename):
+            file_size = os.path.getsize(filename)
+            packer = struct.pack(b'I', file_size)
+
+            with open(filename, "rb") as df:
+                data = 0
+                while data <= file_size:
+                    self.client_sock.send(df.read(ThreadFTPClientHandler.MAX_SEND_BYTES))
+                    data+=ThreadFTPClientHandler.MAX_SEND_BYTES
+
         else:
+            self.client_sock.send("No such file")
+
+    def download_folder(self, foldername):
+
+        if os.path.exists(filename):
+
+        else:
+            self.client_sock.send("No such folder")
+
+
+    def delete_file(self, filename):
+
+        if os.path.exists(filename):
             pass
+        else:
+            self.client_sock.send("No such file")
 
 
-    def download_file(self):
-        pass
+    def delete_folder(self, foldername):
 
-    def download_folder(self):
-        pass
+        if os.path.exists(filename):
+            pass
+        else:
+            self.client_sock.send("No such folder")
 
-    def delete_file(self):
-        pass
-
-    def delete_folder(self):
-        pass
 
     def proceed_command(self, command):
         command = command.strip()
         try:
             output = subprocess.check_output(command,stderr=subprocess.STDOUT,shell=True)
-            self.client_sock.send(output.encode("utf-8"))
-        except:
+            self.client_sock.send(output)
+        except OSError as oerr:
             self.client_sock.send("Failed to execute command\n".encode("utf-8"))
 
 class FTPServer(object):
@@ -137,6 +173,8 @@ class FTPServer(object):
 
         client_handler = ThreadFTPClientHandler(client_socket, client_address)
         client_handler.start()
+
+        self.server_logger.info("Client {} started".format(client_handler.getName()))
 
     def shutdown_server(self):
         self.server_logger.info("Server is closing...")
