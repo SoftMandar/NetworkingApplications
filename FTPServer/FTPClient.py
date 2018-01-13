@@ -26,7 +26,7 @@ class TCPClient(object):
             while self.connected:
 
                 if self.server_address[0] == "127.0.0.1":
-                    command = input("localhost@localhost" + ">> \n")
+                    command = input("\nlocalhost@localhost" + ">> ")
                 else:
                     command = input(self.server_address[0] +'@' + self.server_address +">> \n")
 
@@ -38,7 +38,7 @@ class TCPClient(object):
 
                 while recv_length:
                     recv_data = self.client_socket.recv(TCPClient.MAX_RECV_BYTES)
-                    print(recv_data.decode("utf-8"))
+                    print(recv_data.decode("utf-8").strip())
                     recv_length = len(recv_data)
 
                     if not recv_data:
@@ -47,14 +47,13 @@ class TCPClient(object):
                     elif recv_length < TCPClient.MAX_RECV_BYTES:
                         break
 
-                    data_buffer+=recv_data.decode("utf-8")
-
-                print(data_buffer)
+                    data_buffer+=recv_data
 
                 data_buffer = ""
+
         except IOError as ierr:
             print("An error accoured while io operation")
-            print(ierr)
+            self.connected = False
             self.client_socket.close()
             sys.exit()
 

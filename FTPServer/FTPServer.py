@@ -1,37 +1,11 @@
 import socket
 import struct
-import configparser
 import threading
 import logging.config
 import subprocess
 import os
-import json
 
-
-class FTPServerConfig(object):
-
-    BASE_FOLDER = os.path.dirname(os.path.abspath(__file__))
-
-    def __init__(self, config_file="FTPServer/server_config.ini",logger_config_file="FTPServer/logger_config.json"):
-
-        self.config_parser = configparser.ConfigParser()
-        self.config_parser.read(config_file)
-
-        if os.path.exists(logger_config_file):
-
-                with open(logger_config_file, "rt") as cfg:
-                        logging.config.dictConfig(json.load(cfg))
-        else:
-            logging.basicConfig(level=logging.INFO)
-
-    def getDefaultFolder(self):
-        return self.config_parser.get("ftpsrvconfig","folder")
-
-    def getConfigPort(self):
-        return int(self.config_parser.get("ftpsrvconfig","port"))
-
-    def getDefaultHostAddress(self):
-        return self.config_parser.get("ftpsrvconfig", "hostaddress")
+from config.config import FTPServerConfig
 
 class ThreadFTPClientHandler(threading.Thread):
 
@@ -45,8 +19,8 @@ class ThreadFTPClientHandler(threading.Thread):
         self.client_sock = client_socket
         self.client_addr = client_address
 
-        self.sys_commands = ["ls -l", "ls"]
-        self.tcp_commads = ['-d', '-e', '-df', '-de']
+        self.sys_commands = ["ls -l", "ls", "rm", "rm -r"]
+        self.tcp_commads = ['-d', '-e']
 
     def run(self):
 
@@ -70,55 +44,73 @@ class ThreadFTPClientHandler(threading.Thread):
             elif data_buffer in self.tcp_commads:
                 if data_buffer == '-d':
                     self.download_file(data_buffer.split("=")[1])
-                elif data_buffer == '-e':
-                    pass
-                elif data_buffer == '-df':
-                    pass
                 else:
-                    pass
+                    self.download_folder(data_buffer.split("=")[1])
 
             else:
-                self.client_sock.send("Command is nor reconized")
+                self.client_sock.send("Command is nor reconized".encode("utf-8"))
             data_buffer = ""
 
 
     def download_file(self, filename):
 
         if os.path.exists(filename):
+
             file_size = os.path.getsize(filename)
             packer = struct.pack(b'I', file_size)
 
-            with open(filename, "rb") as df:
-                data = 0
-                while data <= file_size:
-                    self.client_sock.send(df.read(ThreadFTPClientHandler.MAX_SEND_BYTES))
-                    data+=ThreadFTPClientHandler.MAX_SEND_BYTES
+            try:
+
+                self.client_sock.send(packer)
+
+                with open(filename, "rb") as df:
+                    data = 0
+                    while data <= file_size:
+                        self.client_sock.send(df.read(ThreadFTPClientHandler.MAX_SEND_BYTES))
+                        data+=ThreadFTPClientHandler.MAX_SEND_BYTES
+            except IOError as ierr:
+                pass
 
         else:
-            self.client_sock.send("No such file")
+            self.client_sock.send("No such file".encode("utf-8"))
 
     def download_folder(self, foldername):
 
-        if os.path.exists(filename):
-
+        if os.path.exists(foldername):
+            for f in os.listdir:
+                if os.path.isfile(f):
+                    self.download_file(f)
         else:
-            self.client_sock.send("No such folder")
+            self.client_sock.send("No such folder".encode("utf-8"))
 
 
     def delete_file(self, filename):
 
         if os.path.exists(filename):
-            pass
+            try:
+                subprocess.call(['rm' , filename], stderr=subprocess.STDOUT,shell=True)
+            except IOError as ierr:
+                str_err = str(ierr)
+
+                if str_err.find("Permission denied"):
+                    self.client_sock.send("[Errno 13] Permission denied".encode("utf-8"))
+
         else:
-            self.client_sock.send("No such file")
+            self.client_sock.send("No such file".encode("utf-8"))
 
 
     def delete_folder(self, foldername):
 
         if os.path.exists(filename):
-            pass
+                try:
+                    subprocess.call(['rm' , '-r', foldername], stderr=subprocess.STDOUT,shell=True)
+                except IOError as ierr:
+                    str_err = str(ierr)
+
+                    if str_err.find("Permission denied"):
+                        self.client_sock.send("[Errno 13] Permission denied".encode("utf-8"))
         else:
-            self.client_sock.send("No such folder")
+            self.client_sock.send("No such folder".encode("utf-8"))
 
 
     def proceed_command(self, command):
