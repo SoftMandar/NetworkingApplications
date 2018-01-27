@@ -4,13 +4,15 @@ import threading
 import logging.config
 import subprocess
 import os
+import pickle
 
 from config.config import FTPServerConfig
 
 class ThreadFTPClientHandler(threading.Thread):
 
     MAX_RECV_BYTES = 1430
-    MAX_SEND_BYTES = 1024
+    MAX_SEND_BYTES = 1440
+    BASE_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
     def __init__(self, client_socket, client_address):
 
@@ -35,17 +37,15 @@ class ThreadFTPClientHandler(threading.Thread):
                 break
 
             data_buffer+=clt_data.decode("utf-8")
+            command_args = data_buffer.split(" ")
+            if command_args[0] in self.sys_commands:
 
-        #print(data_buffer.decode("utf-8")
-
-            if data_buffer in self.sys_commands:
-            #self.proceed_command(data_buffer)
                 self.proceed_command(data_buffer)
-            elif data_buffer in self.tcp_commads:
-                if data_buffer == '-d':
-                    self.download_file(data_buffer.split("=")[1])
+            elif command_args[0] in self.tcp_commads:
+                if command_args[0] == "-d":
+                    self.download_file(command_args[1])
                 else:
-                    self.download_folder(data_buffer.split("=")[1])
+                    self.download_folder(command_args[1])
 
             else:
                 self.client_sock.send("Command is nor reconized".encode("utf-8"))
@@ -53,43 +53,46 @@ class ThreadFTPClientHandler(threading.Thread):
 
 
     def download_file(self, filename):
+        file_path = "%s/%s" % (ThreadFTPClientHandler.BASE_FOLDER,filename)
+        if os.path.exists(file_path):
 
-        if os.path.exists(filename):
-
-            file_size = os.path.getsize(filename)
-            packer = struct.pack(b'I', file_size)
+            file_size = os.path.getsize(file_path)
+            packer = struct.Struct('I')
+            packet_data = packer.pack(file_size)
 
             try:
 
-                self.client_sock.send(packer)
+                self.client_sock.send(packet_data)
 
-                with open(filename, "rb") as df:
+                with open(file_path, "rb") as df:
                     data = 0
                     while data <= file_size:
                         self.client_sock.send(df.read(ThreadFTPClientHandler.MAX_SEND_BYTES))
                         data+=ThreadFTPClientHandler.MAX_SEND_BYTES
             except IOError as ierr:
-                pass
+                sys.exit(1)
 
         else:
             self.client_sock.send("No such file".encode("utf-8"))
 
     def download_folder(self, foldername):
+        folder_path = "%s/%s" % (ThreadFTPClientHandler.BASE_FOLDER,foldername)
 
-        if os.path.exists(foldername):
-            for f in os.listdir:
-                if os.path.isfile(f):
+        if os.path.exists(folder_path):
+            folder_files = ["%s/%s" % (foldername,f) for f in os.listdir(folder_path)]
+            self.client_sock.send(pickle.dumps(folder_files))
+            for f in folder_files:
                     self.download_file(f)
         else:
             self.client_sock.send("No such folder".encode("utf-8"))
 
 
     def delete_file(self, filename):
-
-        if os.path.exists(filename):
+        file_path = "%s/%s" % (ThreadFTPClientHandler.BASE_FOLDER,filename)
+        if os.path.exists(file_path):
             try:
-                subprocess.call(['rm' , filename], stderr=subprocess.STDOUT,shell=True)
-            except IOError as ierr:
+                subprocess.call(['rm' , file_path], stderr=subprocess.STDOUT,shell=True)
+            except OSError as ierr:
                 str_err = str(ierr)
 
                 if str_err.find("Permission denied"):
@@ -104,7 +107,7 @@ class ThreadFTPClientHandler(threading.Thread):
         if os.path.exists(filename):
                 try:
                     subprocess.call(['rm' , '-r', foldername], stderr=subprocess.STDOUT,shell=True)
-                except IOError as ierr:
+                except OSError as ierr:
                     str_err = str(ierr)
 
                     if str_err.find("Permission denied"):
@@ -114,7 +117,6 @@ class ThreadFTPClientHandler(threading.Thread):
 
 
     def proceed_command(self, command):
-        command = command.strip()
         try:
             output = subprocess.check_output(command,stderr=subprocess.STDOUT,shell=True)
             self.client_sock.send(output)
